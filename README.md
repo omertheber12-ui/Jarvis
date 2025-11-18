@@ -12,6 +12,26 @@ pip install -r requirements.txt
 
 ### 2. Set OpenAI API Key
 
+**Recommended: Use .env file** (easiest and most secure)
+
+1. Copy the example file:
+   ```bash
+   # Windows PowerShell
+   Copy-Item .env.example .env
+   
+   # Linux/Mac
+   cp .env.example .env
+   ```
+
+2. Edit `.env` file and add your OpenAI API key:
+   ```
+   OPENAI_API_KEY=sk-your-actual-api-key-here
+   ```
+
+3. Get your API key from: https://platform.openai.com/api-keys
+
+**Alternative: Set as environment variable**
+
 **Windows (PowerShell):**
 ```powershell
 $env:OPENAI_API_KEY="your-api-key-here"
@@ -25,11 +45,6 @@ set OPENAI_API_KEY=your-api-key-here
 **Linux/Mac:**
 ```bash
 export OPENAI_API_KEY="your-api-key-here"
-```
-
-**Or create a `.env` file** (optional, requires python-dotenv):
-```
-OPENAI_API_KEY=your-api-key-here
 ```
 
 ### 3. Run the Application
@@ -58,12 +73,14 @@ Navigate to: `http://localhost:5000`
 ├── jarvis_chat.py          # Main Flask application
 ├── src/                    # Source modules
 │   ├── __init__.py
-│   ├── config.py           # Configuration constants
+│   ├── config.py           # Configuration constants (loads .env)
 │   ├── storage.py          # ConversationStorage class
 │   ├── openai_client.py    # OpenAIClient class
 │   └── conversation_manager.py  # ConversationManager class
 ├── templates/
 │   └── index.html          # Chat UI
+├── .env                    # Environment variables (create from .env.example)
+├── .env.example            # Template for environment variables
 ├── conversations.json      # Conversation storage (auto-created)
 ├── requirements.txt        # Python dependencies
 └── README.md              # This file
