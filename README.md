@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-# Jarvis - Personal Secretary
-
-Feature 1: Basic Text-Based Conversation with OpenAI API
-=======
 # Jarvis - Personal Secretary
 
 Feature 1: Basic Text-Based Conversation with OpenAI API
@@ -104,5 +99,3 @@ This structure makes it easy to:
 - Each session maintains full conversation history
 - System prompt defines Jarvis's personality
 - Error handling for API failures and validation
-
->>>>>>> master
