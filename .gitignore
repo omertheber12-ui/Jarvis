@@ -20,6 +20,10 @@ instance/
 # Conversation storage
 conversations.json
 
+# Google Calendar secrets
+google_calendar_credentials.json
+token.json
+
 # IDE
 .vscode/
 .idea/
