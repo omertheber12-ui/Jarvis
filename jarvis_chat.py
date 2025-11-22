@@ -6,10 +6,13 @@ Run: python jarvis_chat.py
 Requires: .env file with OPENAI_API_KEY or environment variable
 """
 
+import argparse
+
 from flask import Flask, render_template, request, jsonify
+
+from src.config import MAX_MESSAGE_LENGTH, OPENAI_API_KEY
 from src.conversation_manager import ConversationManager
 from src.storage import ConversationStorage
-from src.config import MAX_MESSAGE_LENGTH, OPENAI_API_KEY
 
 app = Flask(__name__)
 
@@ -81,8 +84,34 @@ def get_history(session_id):
     })
 
 
-if __name__ == '__main__':
-    # Check for API key
+def run_calendar_test():
+    """List upcoming Google Calendar events as a connectivity check."""
+    from src.calendar import GoogleCalendarProvider
+
+    provider = GoogleCalendarProvider()
+    events = provider.list_upcoming_events()
+    if not events:
+        print("No upcoming events found.")
+        return
+
+    print("Upcoming events:")
+    for event in events:
+        print(f"- {event.start} → {event.end}: {event.summary}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Jarvis personal secretary server")
+    parser.add_argument(
+        "--calendar-test",
+        action="store_true",
+        help="List upcoming Google Calendar events and exit.",
+    )
+    args = parser.parse_args()
+
+    if args.calendar_test:
+        run_calendar_test()
+        return
+
     if not OPENAI_API_KEY:
         print("ERROR: OPENAI_API_KEY is not set")
         print("Please create a .env file with your API key:")
@@ -90,7 +119,11 @@ if __name__ == '__main__':
         print("  2. Add your OpenAI API key to .env file")
         print("  3. Or set it as environment variable: $env:OPENAI_API_KEY='your-key'")
         exit(1)
-    
+
     print("Starting Jarvis chat server...")
     print("Open your browser to: http://localhost:5000")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+if __name__ == '__main__':
+    main()

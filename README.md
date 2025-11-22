@@ -53,6 +53,14 @@ export OPENAI_API_KEY="your-api-key-here"
 python jarvis_chat.py
 ```
 
+To quickly verify Google Calendar access (Feature 2 groundwork), run:
+
+```bash
+python jarvis_chat.py --calendar-test
+```
+
+See `GOOGLE_CALENDAR_SETUP.md` for credential instructions.
+
 ### 4. Open in Browser
 
 Navigate to: `http://localhost:5000`
