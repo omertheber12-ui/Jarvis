@@ -17,7 +17,9 @@ class ConversationStorage:
     
     def ensure_storage_file(self):
         """Create storage file if it doesn't exist"""
-        if not Path(self.storage_file).exists():
+        storage_path = Path(self.storage_file)
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        if not storage_path.exists():
             self.save_conversations({"conversations": []})
     
     def load_conversations(self):
@@ -30,7 +32,9 @@ class ConversationStorage:
     
     def save_conversations(self, data):
         """Save conversations to JSON file"""
-        with open(self.storage_file, 'w', encoding='utf-8') as f:
+        storage_path = Path(self.storage_file)
+        storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with storage_path.open('w', encoding='utf-8') as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
     
     def get_or_create_session(self, session_id):

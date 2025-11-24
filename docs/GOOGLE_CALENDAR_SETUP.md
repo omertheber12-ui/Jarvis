@@ -3,22 +3,22 @@
 1. **Enable API & download OAuth client**
    - In Google Cloud Console, enable the Calendar API for your project.
    - Create an “OAuth client ID” (Desktop app is simplest during development).
-   - Download the JSON and save it as `google_calendar_credentials.json` in the repo root. Make sure it contains `client_id`, `client_secret`, and redirect URIs.
+   - Download the JSON and save it as `data/credentials/google_calendar_credentials.json`. Make sure it contains `client_id`, `client_secret`, and redirect URIs.
 
 2. **Install dependencies**
    - Already covered in `requirements.txt`: install/update with `pip install -r requirements.txt`.
 
 3. **Generate user tokens**
-   - Run `python authenticate_calendar.py`.
+   - Run `python scripts/authenticate_calendar.py`.
    - Sign in with the Google account that owns the calendar.
-   - The script saves tokens to `token.json` (refresh tokens included). Keep it private.
+   - The script saves tokens to `data/credentials/token.json` (refresh tokens included). Keep it private.
 
 4. **Verify connectivity**
    - After authentication, run `python jarvis_chat.py --calendar-test` (added in Feature 2).
    - The script lists the next few events; confirm they match your calendar.
 
 5. **Security notes**
-   - Never commit `google_calendar_credentials.json` or `token.json`.
+   - Never commit files inside `data/credentials/`.
    - Regenerate tokens if you revoke access from the Google Account permissions page.
 
 Refer to `CALENDAR_ARCHITECTURE.md` for a high-level design once available. This document only covers local setup.
@@ -64,11 +64,11 @@ python -m pip install -r requirements.txt
 3. Choose "Desktop app" as application type
 4. Name it "Jarvis Calendar"
 5. Download the JSON file
-6. Save it as `google_calendar_credentials.json` in the project root
+6. Save it as `data/credentials/google_calendar_credentials.json`
 
 ### 4. First-Time Authentication
 
-When you first run Jarvis with calendar enabled:
+When you first run Jarvis with calendar enabled (or execute the helper script):
 
 1. The app will prompt you to visit an authorization URL
 2. Sign in with your Google account
@@ -76,15 +76,16 @@ When you first run Jarvis with calendar enabled:
 4. Copy the authorization code
 5. Paste it into the terminal
 
-The token will be saved in `google_calendar_token.pickle` for future use.
+The token will be saved in `data/credentials/token.json` for future use.
 
 ### 5. Environment Configuration (Optional)
 
-Add to `.env` file:
+Add to `.env` file (override only if you need custom paths):
 
 ```
 ENABLE_CALENDAR=true
-GOOGLE_CALENDAR_CREDENTIALS_FILE=google_calendar_credentials.json
+GOOGLE_CREDENTIALS_FILE=data/credentials/google_calendar_credentials.json
+GOOGLE_TOKEN_FILE=data/credentials/token.json
 ```
 
 ## How It Works
@@ -132,10 +133,10 @@ Test calendar integration:
 
 ### "Calendar not authenticated"
 - Run the authentication flow (see step 4 above)
-- Check that `google_calendar_credentials.json` exists
+- Check that `data/credentials/google_calendar_credentials.json` exists
 
 ### "Credentials file not found"
-- Ensure `google_calendar_credentials.json` is in project root
+- Ensure `data/credentials/google_calendar_credentials.json` exists
 - Check file name matches exactly
 
 ### "API error"
@@ -145,8 +146,8 @@ Test calendar integration:
 
 ## Security Notes
 
-- `google_calendar_credentials.json` is in `.gitignore` (never commit)
-- `google_calendar_token.pickle` contains your access token (never commit)
+- `data/credentials/*.json` is ignored via `.gitignore` (never commit secrets)
+- `data/credentials/token.json` contains your refresh token (never commit)
 - Tokens are stored locally on your machine
 - Revoke access in Google Account settings if needed
 

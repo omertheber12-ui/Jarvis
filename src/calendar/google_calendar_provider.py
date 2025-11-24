@@ -20,10 +20,11 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
+from ..config import GOOGLE_CREDENTIALS_FILE, GOOGLE_TOKEN_FILE
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-DEFAULT_CREDENTIALS_PATH = Path("google_calendar_credentials.json")
-DEFAULT_TOKEN_PATH = Path("token.json")
+DEFAULT_CREDENTIALS_PATH = GOOGLE_CREDENTIALS_FILE
+DEFAULT_TOKEN_PATH = GOOGLE_TOKEN_FILE
 
 
 @dataclass
@@ -99,7 +100,7 @@ class GoogleCalendarProvider:
         if not creds or not creds.valid:
             raise RuntimeError(
                 "Google Calendar token missing or invalid. "
-                "Run `python authenticate_calendar.py` to authorize access."
+                "Run `python scripts/authenticate_calendar.py` to authorize access."
             )
 
         self._creds = creds
@@ -113,6 +114,7 @@ class GoogleCalendarProvider:
             )
 
     def _save_credentials(self, creds: Credentials) -> None:
+        self.token_path.parent.mkdir(parents=True, exist_ok=True)
         self.token_path.write_text(creds.to_json(), encoding="utf-8")
 
     # ------------------------------------------------------------------
