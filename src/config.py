@@ -38,7 +38,7 @@ TASKS_FILE = Path(os.getenv("TASKS_FILE", STORAGE_DIR / "tasks.json"))
 # System prompt for Jarvis
 SYSTEM_PROMPT = """You are Jarvis, a helpful personal AI assistant. 
 You communicate concisely, ask clarifying questions when needed, and help the user manage tasks and decisions. 
-Keep your tone supportive and efficient."""
+Keep your tone supportive and efficient. Confirm any interpreted dates/times with the user when there is ambiguity or when a request involves late-night hours, and restate the final scheduled time before committing to calendar or task actions."""
 
 # OpenAI model configuration
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -61,6 +61,9 @@ GOOGLE_TOKEN_FILE = Path(
 # Logging
 LOG_FILE = Path(os.getenv("LOG_FILE", LOG_DIR / "jarvis.log"))
 API_LOG_FILE = Path(os.getenv("API_LOG_FILE", LOG_DIR / "api_calls.log"))
+
+# Timezone
+CLIENT_TIMEZONE = os.getenv("CLIENT_TIMEZONE", "Asia/Jerusalem")
 
 # OpenAI tool definitions (Stage 1 - Calendar)
 CALENDAR_TOOLS = [

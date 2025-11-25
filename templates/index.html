@@ -176,6 +176,35 @@
             color: #ff6b6b;
         }
 
+        .assistant-hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #777;
+        }
+
+        .prompt-suggestions {
+            margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .suggestion-button {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(135deg, rgba(255,255,255,0.4), rgba(255,255,255,0.2));
+            color: #333;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s ease, transform 0.2s ease;
+        }
+
+        .suggestion-button:hover {
+            background: rgba(255, 255, 255, 0.6);
+            transform: translateY(-1px);
+        }
+
         #sendButton {
             padding: 12px 24px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -265,6 +294,20 @@
                         maxlength="{{ max_length }}"
                     ></textarea>
                     <div class="char-count" id="charCount">0 / {{ max_length }}</div>
+                    <div class="assistant-hint">
+                        Jarvis confirms every interpreted date or time before committing to an action.
+                    </div>
+                    <div class="prompt-suggestions">
+                        <button type="button" class="suggestion-button" onclick="applySuggestion('What is on my calendar this Thursday afternoon?')">
+                            Check Thursday afternoon
+                        </button>
+                        <button type="button" class="suggestion-button" onclick="applySuggestion('Add a task for tomorrow morning: Review the quarterly report at 09:00.')">
+                            Task for tomorrow morning
+                        </button>
+                        <button type="button" class="suggestion-button" onclick="applySuggestion('Schedule a call on 3 December at 14:00 with Dana about the product launch.')">
+                            Schedule call on Dec 3
+                        </button>
+                    </div>
                 </div>
                 <button id="sendButton" onclick="sendMessage()">Send</button>
             </div>
@@ -398,6 +441,12 @@
 
         // Focus input on load
         messageInput.focus();
+
+        function applySuggestion(text) {
+            messageInput.value = text;
+            messageInput.dispatchEvent(new Event('input'));
+            messageInput.focus();
+        }
     </script>
 </body>
 </html>

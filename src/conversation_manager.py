@@ -3,7 +3,8 @@ Conversation manager - orchestrates conversation flow and validation
 """
 
 import json
-from typing import Any, Dict, List
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from .calendar import GoogleCalendarProvider
 from .storage import ConversationStorage
@@ -16,6 +17,9 @@ from .config import (
     MAX_MESSAGE_LENGTH,
     TASK_TOOLS,
 )
+from .time_utils import format_human, now_local, resolve_time_reference, is_late_hour
+
+DATE_CONFIDENCE_THRESHOLD = 0.98
 
 
 class ConversationManager:
@@ -137,7 +141,11 @@ class ConversationManager:
         self.storage.add_message(session_id, "user", user_message)
 
         try:
-            response_text = self._run_conversation_loop(session_id, messages)
+            runtime_messages = messages.copy()
+            runtime_messages.append(self._build_time_context_message())
+            response_text = self._run_conversation_loop(
+                session_id, messages, runtime_messages
+            )
             return response_text, None
         except RuntimeError as exc:
             return None, self._format_error_message(str(exc))
@@ -145,10 +153,13 @@ class ConversationManager:
             return None, "Jarvis ran into an unexpected error. " + str(exc)
 
     def _run_conversation_loop(
-        self, session_id: str, messages: List[Dict[str, Any]]
+        self,
+        session_id: str,
+        persistent_messages: List[Dict[str, Any]],
+        runtime_messages: List[Dict[str, Any]],
     ) -> str:
         for _ in range(self.max_tool_iterations):
-            ai_response: ModelResponse = self.api_client.get_response(messages)
+            ai_response: ModelResponse = self.api_client.get_response(runtime_messages)
             assistant_message = ai_response.message
 
             extra_fields = {
@@ -156,7 +167,8 @@ class ConversationManager:
                 for key, value in assistant_message.items()
                 if key not in {"role", "content"}
             }
-            messages.append(assistant_message)
+            persistent_messages.append(assistant_message)
+            runtime_messages.append(assistant_message)
             self.storage.add_message(
                 session_id,
                 assistant_message.get("role", "assistant"),
@@ -165,7 +177,9 @@ class ConversationManager:
             )
 
             if ai_response.tool_calls:
-                self._handle_tool_calls(session_id, messages, ai_response.tool_calls)
+                self._handle_tool_calls(
+                    session_id, persistent_messages, runtime_messages, ai_response.tool_calls
+                )
                 continue
 
             if ai_response.content:
@@ -179,7 +193,8 @@ class ConversationManager:
     def _handle_tool_calls(
         self,
         session_id: str,
-        messages: List[Dict[str, Any]],
+        persistent_messages: List[Dict[str, Any]],
+        runtime_messages: List[Dict[str, Any]],
         tool_calls: List[ToolRequest],
     ) -> None:
         for tool_call in tool_calls:
@@ -191,7 +206,8 @@ class ConversationManager:
                 "name": tool_call.name,
                 "content": tool_content,
             }
-            messages.append(tool_message)
+            persistent_messages.append(tool_message)
+            runtime_messages.append(tool_message)
             self.storage.add_message(
                 session_id,
                 "tool",
@@ -213,6 +229,78 @@ class ConversationManager:
         except Exception as exc:  # pylint: disable=broad-except
             return {"success": False, "error": str(exc)}
 
+    def _ensure_confident_times(
+        self,
+        arguments: Dict[str, Any],
+        required_fields: List[str],
+        optional_fields: Optional[List[str]] = None,
+    ) -> Tuple[Optional[Dict[str, Dict[str, Any]]], Optional[Dict[str, Any]]]:
+        optional_fields = optional_fields or []
+        normalized: Dict[str, Dict[str, Any]] = {}
+        issues: List[str] = []
+
+        for field in required_fields + optional_fields:
+            raw_value = arguments.get(field)
+            if raw_value in (None, ""):
+                if field in required_fields:
+                    issues.append(f"{field} is required.")
+                continue
+
+            resolution = resolve_time_reference(str(raw_value))
+            if not resolution.iso:
+                issues.append(f"{field} could not be interpreted from '{raw_value}'.")
+                continue
+
+            localized = datetime.fromisoformat(resolution.iso)
+            normalized[field] = {
+                "iso": resolution.iso,
+                "human": format_human(localized),
+                "confidence": resolution.confidence,
+                "is_relative": resolution.is_relative,
+                "raw": raw_value,
+                "late_hour": is_late_hour(localized),
+            }
+
+            if resolution.confidence < DATE_CONFIDENCE_THRESHOLD:
+                issues.append(
+                    f"{field} confidence {resolution.confidence:.2f} below required threshold."
+                )
+            if is_late_hour(localized):
+                issues.append(f"{field} occurs late in the day; confirm with the client.")
+
+        if issues:
+            return None, self._build_confirmation_error(issues, normalized)
+        return normalized, None
+
+    def _build_confirmation_error(
+        self, issues: List[str], normalized: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        return {
+            "success": False,
+            "error": "DATE_CONFIRMATION_REQUIRED",
+            "details": {
+                "issues": issues,
+                "resolved_values": {
+                    field: {
+                        "raw": info["raw"],
+                        "interpreted": info["human"],
+                        "confidence": info["confidence"],
+                    }
+                    for field, info in normalized.items()
+                },
+            },
+        }
+
+    def _summarize_resolutions(
+        self, normalized: Optional[Dict[str, Dict[str, Any]]]
+    ) -> Dict[str, Dict[str, str]]:
+        if not normalized:
+            return {}
+        return {
+            field: {"iso": info["iso"], "human": info["human"]}
+            for field, info in normalized.items()
+        }
+
     def _handle_list_events(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         max_results = int(arguments.get("max_results", 5) or 5)
         max_results = max(1, min(max_results, 20))
@@ -220,26 +308,37 @@ class ConversationManager:
         return {"events": [event.to_dict() for event in events]}
 
     def _handle_check_calendar_status(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        start_time = arguments.get("start_time")
-        end_time = arguments.get("end_time")
-        if not start_time or not end_time:
-            raise ValueError(
-                "Both start_time and end_time are required for availability checks."
-            )
+        normalized, error_payload = self._ensure_confident_times(
+            arguments, required_fields=["start_time", "end_time"]
+        )
+        if error_payload:
+            return error_payload
+
+        start_time = normalized["start_time"]["iso"]
+        end_time = normalized["end_time"]["iso"]
+
         events = self.calendar.list_events_in_range(start_time, end_time)
         return {
             "conflicts": [event.to_dict() for event in events],
             "is_available": len(events) == 0,
+            "resolved_times": self._summarize_resolutions(normalized),
         }
 
     def _handle_create_event(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         summary = arguments.get("summary")
-        start_time = arguments.get("start_time")
-        end_time = arguments.get("end_time")
-        if not all([summary, start_time, end_time]):
+        if not summary:
             raise ValueError(
                 "summary, start_time, and end_time are required to create events."
             )
+
+        normalized, error_payload = self._ensure_confident_times(
+            arguments, required_fields=["start_time", "end_time"]
+        )
+        if error_payload:
+            return error_payload
+
+        start_time = normalized["start_time"]["iso"]
+        end_time = normalized["end_time"]["iso"]
 
         conflicts = self.calendar.list_events_in_range(start_time, end_time)
         if conflicts:
@@ -247,6 +346,7 @@ class ConversationManager:
                 "created": False,
                 "conflicts": [event.to_dict() for event in conflicts],
                 "message": "Timeslot is unavailable.",
+                "resolved_times": self._summarize_resolutions(normalized),
             }
 
         event = self.calendar.create_event(
@@ -256,40 +356,72 @@ class ConversationManager:
             description=arguments.get("description"),
             location=arguments.get("location"),
         )
-        return {"created": True, "event": event.to_dict()}
+        verified = self.calendar.get_event(event.event_id) if event.event_id else None
+        event_payload = self._event_to_dict(event)
+        return {
+            "created": True,
+            "event": event_payload,
+            "resolved_times": self._summarize_resolutions(normalized),
+            "verification": self._event_to_dict(verified),
+        }
 
     def _handle_update_event(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         event_id = arguments.get("event_id")
         if not event_id:
             raise ValueError("event_id is required to update an event.")
+
+        normalized, error_payload = self._ensure_confident_times(
+            arguments, required_fields=[], optional_fields=["start_time", "end_time"]
+        )
+        if error_payload:
+            return error_payload
+
         event = self.calendar.update_event(
             event_id=event_id,
             summary=arguments.get("summary"),
-            start_time=arguments.get("start_time"),
-            end_time=arguments.get("end_time"),
+            start_time=normalized.get("start_time", {}).get("iso"),
+            end_time=normalized.get("end_time", {}).get("iso"),
             description=arguments.get("description"),
             location=arguments.get("location"),
         )
-        return {"event": event.to_dict()}
+        result = {"event": self._event_to_dict(event)}
+        if normalized:
+            result["resolved_times"] = self._summarize_resolutions(normalized)
+        verified = self.calendar.get_event(event.event_id or event_id)
+        result["verification"] = self._event_to_dict(verified)
+        return result
 
     def _handle_delete_event(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         event_id = arguments.get("event_id")
         if not event_id:
             raise ValueError("event_id is required to delete an event.")
         self.calendar.delete_event(event_id)
-        return {"deleted": True, "event_id": event_id}
+        post_state = self.calendar.get_event(event_id)
+        return {
+            "deleted": True,
+            "event_id": event_id,
+            "verified_deleted": post_state is None,
+        }
 
     def _handle_create_task(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         title = arguments.get("title")
         if not title:
             raise ValueError("title is required to create a task.")
+        normalized, error_payload = self._ensure_confident_times(
+            arguments, required_fields=[], optional_fields=["due_date"]
+        )
+        if error_payload:
+            return error_payload
         task = self.task_manager.create_task(
             title=title,
             description=arguments.get("description"),
-            due_date=arguments.get("due_date"),
+            due_date=normalized.get("due_date", {}).get("iso"),
             priority=arguments.get("priority", "normal"),
         )
-        return {"task": task}
+        result = {"task": task}
+        if normalized:
+            result["resolved_times"] = self._summarize_resolutions(normalized)
+        return result
 
     def _handle_list_tasks(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         tasks = self.task_manager.list_tasks(
@@ -302,14 +434,24 @@ class ConversationManager:
         task_id = arguments.get("task_id")
         if not task_id:
             raise ValueError("task_id is required to update a task.")
+        normalized, error_payload = self._ensure_confident_times(
+            arguments, required_fields=[], optional_fields=["due_date"]
+        )
+        if error_payload:
+            return error_payload
         task = self.task_manager.update_task(
             task_id=task_id,
             title=arguments.get("title"),
             description=arguments.get("description"),
-            due_date=arguments.get("due_date"),
+            due_date=normalized.get("due_date", {}).get("iso")
+            if normalized
+            else arguments.get("due_date"),
             priority=arguments.get("priority"),
         )
-        return {"task": task}
+        result = {"task": task}
+        if normalized:
+            result["resolved_times"] = self._summarize_resolutions(normalized)
+        return result
 
     def _handle_delete_task(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         task_id = arguments.get("task_id")
@@ -333,4 +475,35 @@ class ConversationManager:
                 "authentication helper or verify ENABLE_CALENDAR is true."
             )
         return error_text
+
+    def _build_time_context_message(self) -> Dict[str, str]:
+        timestamp_text = format_human(now_local())
+        return {
+            "role": "system",
+            "content": (
+                f"Reference date/time: {timestamp_text}. "
+                "Interpret relative date phrases based on this moment."
+            ),
+        }
+
+    @staticmethod
+    def _event_to_dict(event: Any) -> Optional[Dict[str, Any]]:
+        if event is None:
+            return None
+        if isinstance(event, dict):
+            return event
+        if hasattr(event, "to_dict"):
+            return event.to_dict()
+        fallback: Dict[str, Any] = {}
+        for attr in ("event_id", "summary", "start", "end"):
+            if hasattr(event, attr):
+                value = getattr(event, attr)
+                fallback[attr] = (
+                    value
+                    if isinstance(value, (str, int, float, bool))
+                    else str(value)
+                )
+        if not fallback:
+            fallback["representation"] = repr(event)
+        return fallback
 

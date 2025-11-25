@@ -391,3 +391,40 @@ class GoogleCalendarProvider:
             response={"status": "deleted"},
             metadata={"duration_ms": int((perf_counter() - timer_start) * 1000)},
         )
+
+    def get_event(self, event_id: str) -> Optional[CalendarEvent]:
+        service = self._get_service()
+        timer_start = perf_counter()
+        try:
+            event_data = (
+                service.events()
+                .get(calendarId=DEFAULT_CALENDAR_ID, eventId=event_id)
+                .execute()
+            )
+        except HttpError as exc:
+            if exc.resp and exc.resp.status == 404:
+                api_logger.log_call(
+                    service="google_calendar",
+                    action="events.get",
+                    request={"event_id": event_id},
+                    response={"status": "not_found"},
+                    metadata={"duration_ms": int((perf_counter() - timer_start) * 1000)},
+                )
+                return None
+            api_logger.log_call(
+                service="google_calendar",
+                action="events.get",
+                request={"event_id": event_id},
+                error=str(exc),
+                metadata={"duration_ms": int((perf_counter() - timer_start) * 1000)},
+            )
+            raise RuntimeError(f"Google Calendar API error: {exc}") from exc
+
+        api_logger.log_call(
+            service="google_calendar",
+            action="events.get",
+            request={"event_id": event_id},
+            response={"status": "retrieved"},
+            metadata={"duration_ms": int((perf_counter() - timer_start) * 1000)},
+        )
+        return self._normalize_event(event_data)

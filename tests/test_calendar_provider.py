@@ -290,3 +290,44 @@ class TestGoogleCalendarProvider:
         provider.delete_event("evt_3")
         mock_logger.log_call.assert_called()
 
+    @patch('src.calendar.google_calendar_provider.api_logger')
+    @patch('src.calendar.google_calendar_provider.build')
+    @patch('src.calendar.google_calendar_provider.GoogleCalendarProvider.ensure_authenticated')
+    def test_get_event_success(self, mock_ensure_auth, mock_build, mock_logger):
+        """Test retrieving single event"""
+        mock_service = MagicMock()
+        mock_get = MagicMock()
+        mock_get.execute.return_value = {
+            "id": "evt_4",
+            "summary": "Demo",
+            "start": {"dateTime": "2024-02-01T10:00:00Z"},
+            "end": {"dateTime": "2024-02-01T11:00:00Z"},
+        }
+        mock_service.events.return_value.get.return_value = mock_get
+        mock_build.return_value = mock_service
+
+        provider = GoogleCalendarProvider()
+        provider._service = mock_service
+        event = provider.get_event("evt_4")
+        assert event.event_id == "evt_4"
+        mock_logger.log_call.assert_called()
+
+    @patch('src.calendar.google_calendar_provider.api_logger')
+    @patch('src.calendar.google_calendar_provider.build')
+    @patch('src.calendar.google_calendar_provider.GoogleCalendarProvider.ensure_authenticated')
+    def test_get_event_not_found(self, mock_ensure_auth, mock_build, mock_logger):
+        """Test retrieving missing event returns None"""
+        from googleapiclient.errors import HttpError
+
+        mock_service = MagicMock()
+        mock_get = MagicMock()
+        error = HttpError(Mock(status=404), b'Not Found')
+        mock_get.execute.side_effect = error
+        mock_service.events.return_value.get.return_value = mock_get
+        mock_build.return_value = mock_service
+
+        provider = GoogleCalendarProvider()
+        provider._service = mock_service
+        event = provider.get_event("missing")
+        assert event is None
+

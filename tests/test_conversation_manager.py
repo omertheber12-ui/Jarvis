@@ -3,6 +3,7 @@ Tests for src/conversation_manager.py
 """
 
 import pytest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch, MagicMock
 from src.conversation_manager import ConversationManager
 from src.config import MAX_MESSAGE_LENGTH
@@ -150,6 +151,7 @@ class TestConversationManager:
         fake_event = Mock()
         fake_event.to_dict.return_value = {"id": "evt_10", "summary": "Meeting"}
         mock_calendar.create_event.return_value = fake_event
+        mock_calendar.get_event.return_value = fake_event
         mock_calendar_class.return_value = mock_calendar
         mock_task_manager.return_value = Mock()
 
@@ -290,6 +292,57 @@ class TestConversationManager:
         result = manager._execute_tool(tool_request)
         assert result["success"] is False
         assert "disabled" in result["error"].lower()
+
+    @patch('src.conversation_manager.resolve_time_reference')
+    @patch('src.conversation_manager.TaskManager')
+    @patch('src.conversation_manager.GoogleCalendarProvider')
+    def test_create_event_requires_confirmation_when_low_confidence(
+        self, mock_calendar_class, mock_task_manager, mock_resolve
+    ):
+        """Low confidence dates should trigger confirmation requirement."""
+        mock_calendar = Mock()
+        mock_calendar.list_events_in_range.return_value = []
+        mock_calendar_class.return_value = mock_calendar
+        mock_task_manager.return_value = Mock()
+
+        mock_resolve.side_effect = [
+            SimpleNamespace(iso="2025-11-25T22:00:00+02:00", confidence=0.9, is_relative=True),
+            SimpleNamespace(iso="2025-11-25T23:00:00+02:00", confidence=0.9, is_relative=True),
+        ]
+
+        manager = ConversationManager()
+        payload = manager._handle_create_event(
+            {
+                "summary": "Late call",
+                "start_time": "tomorrow 10pm",
+                "end_time": "tomorrow 11pm",
+            }
+        )
+        assert payload["success"] is False
+        assert payload["error"] == "DATE_CONFIRMATION_REQUIRED"
+
+    @patch('src.conversation_manager.resolve_time_reference')
+    @patch('src.conversation_manager.TaskManager')
+    @patch('src.conversation_manager.GoogleCalendarProvider')
+    def test_create_task_returns_resolved_times(
+        self, mock_calendar_class, mock_task_manager, mock_resolve
+    ):
+        """Task creation response should surface interpreted due date."""
+        mock_calendar_class.return_value = Mock()
+        mock_task = {"id": "task_99", "title": "Submit report", "status": "pending"}
+        mock_task_manager.return_value.create_task.return_value = mock_task
+
+        mock_resolve.return_value = SimpleNamespace(
+            iso="2025-11-25T09:00:00+02:00", confidence=1.0, is_relative=False
+        )
+
+        manager = ConversationManager()
+        payload = manager._handle_create_task(
+            {"title": "Submit report", "due_date": "2025-11-25T09:00:00+02:00"}
+        )
+        assert payload["task"] == mock_task
+        assert "resolved_times" in payload
+        assert "due_date" in payload["resolved_times"]
 
     @patch('src.conversation_manager.ENABLE_TASKS', False)
     @patch('src.conversation_manager.TaskManager')

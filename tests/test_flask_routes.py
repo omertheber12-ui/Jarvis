@@ -22,6 +22,7 @@ class TestFlaskRoutes:
         response = client.get('/')
         assert response.status_code == 200
         assert b'html' in response.data.lower() or b'<!DOCTYPE' in response.data
+        assert b'Jarvis confirms every interpreted date' in response.data
     
     def test_chat_route_missing_json(self, client):
         """Test chat route with non-JSON request"""
