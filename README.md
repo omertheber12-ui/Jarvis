@@ -78,20 +78,26 @@ Navigate to: `http://localhost:5000`
 
 ```
 .
-├── jarvis_chat.py          # Main Flask application
-├── src/                    # Source modules
-│   ├── __init__.py
-│   ├── config.py           # Configuration constants (loads .env)
-│   ├── storage.py          # ConversationStorage class
-│   ├── openai_client.py    # OpenAIClient class
-│   └── conversation_manager.py  # ConversationManager class
-├── templates/
-│   └── index.html          # Chat UI
-├── .env                    # Environment variables (create from .env.example)
-├── .env.example            # Template for environment variables
-├── conversations.json      # Conversation storage (auto-created)
-├── requirements.txt        # Python dependencies
-└── README.md              # This file
+├── jarvis_chat.py              # Main Flask application
+├── src/                        # Source modules (config, storage, OpenAI, calendar, etc.)
+├── templates/                  # Flask HTML templates
+├── scripts/                    # Utility helpers (auth, tests, dev server)
+│   ├── authenticate_calendar.py
+│   ├── run_tests.py
+│   └── test_server.py
+├── docs/                       # Additional setup and testing guides
+│   ├── INSTALL_PYTHON.md
+│   ├── GOOGLE_CALENDAR_SETUP.md
+│   └── TESTING.md
+├── tests/                      # Pytest suite
+├── data/                       # Runtime artifacts (git-ignored JSON/log files)
+│   ├── storage/                # conversations.json lives here
+│   ├── credentials/            # Google OAuth secrets + tokens
+│   └── logs/                   # Application logs
+├── requirements.txt            # Python dependencies
+├── pytest.ini                  # Pytest configuration
+├── .env / .env.example         # Environment variables
+└── README.md                   # This file
 ```
 
 ## Modular Design
@@ -120,7 +126,7 @@ This structure makes it easy to:
 
 ## Notes
 
-- Conversations are stored in `conversations.json`
+- Conversations are stored in `data/storage/conversations.json`
 - Each session maintains full conversation history
 - System prompt defines Jarvis's personality
 - Error handling for API failures and validation

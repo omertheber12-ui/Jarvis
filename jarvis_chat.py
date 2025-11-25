@@ -10,7 +10,12 @@ import argparse
 
 from flask import Flask, render_template, request, jsonify
 
-from src.config import MAX_MESSAGE_LENGTH, OPENAI_API_KEY
+from src.config import (
+    ENABLE_CALENDAR,
+    ENABLE_TASKS,
+    MAX_MESSAGE_LENGTH,
+    OPENAI_API_KEY,
+)
 from src.conversation_manager import ConversationManager
 from src.storage import ConversationStorage
 
@@ -30,7 +35,12 @@ def get_conv_manager():
 @app.route('/')
 def index():
     """Main chat interface"""
-    return render_template('index.html', max_length=MAX_MESSAGE_LENGTH)
+    return render_template(
+        'index.html',
+        max_length=MAX_MESSAGE_LENGTH,
+        enable_calendar=ENABLE_CALENDAR,
+        enable_tasks=ENABLE_TASKS,
+    )
 
 
 @app.route('/chat', methods=['POST'])
@@ -86,6 +96,10 @@ def get_history(session_id):
 
 def run_calendar_test():
     """List upcoming Google Calendar events as a connectivity check."""
+    if not ENABLE_CALENDAR:
+        print("Calendar integration is disabled (ENABLE_CALENDAR=false).")
+        return
+
     from src.calendar import GoogleCalendarProvider
 
     provider = GoogleCalendarProvider()

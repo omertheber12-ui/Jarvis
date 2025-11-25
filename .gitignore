@@ -17,12 +17,10 @@ instance/
 .env
 .env.local
 
-# Conversation storage
-conversations.json
-
-# Google Calendar secrets
-google_calendar_credentials.json
-token.json
+# Runtime data artifacts
+data/storage/*.json
+data/credentials/*.json
+data/logs/*.log
 
 # IDE
 .vscode/
