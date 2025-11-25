@@ -42,6 +42,12 @@ class TestConfig:
         assert hasattr(config, 'OPENAI_TEMPERATURE')
         assert isinstance(config.OPENAI_TEMPERATURE, float)
         assert 0.0 <= config.OPENAI_TEMPERATURE <= 2.0
+
+    def test_feature_flag_defaults(self):
+        """Feature toggles should be booleans"""
+        assert isinstance(config.ENABLE_CALENDAR, bool)
+        assert isinstance(config.ENABLE_TASKS, bool)
+        assert isinstance(config.ENABLE_LOGGING, bool)
     
     @patch.dict(os.environ, {'MAX_MESSAGE_LENGTH': '500'})
     def test_max_message_length_from_env(self):

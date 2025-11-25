@@ -56,13 +56,16 @@ class ConversationStorage:
         self.save_conversations(data)
         return new_session
     
-    def add_message(self, session_id, role, content):
+    def add_message(self, session_id, role, content, **extra_fields):
         """Add a message to a conversation session"""
         data = self.load_conversations()
+        message = {"role": role, "content": content}
+        if extra_fields:
+            message.update(extra_fields)
         
         for conv in data["conversations"]:
             if conv["session_id"] == session_id:
-                conv["messages"].append({"role": role, "content": content})
+                conv["messages"].append(message)
                 conv["updated_at"] = datetime.now().isoformat()
                 self.save_conversations(data)
                 return
@@ -72,7 +75,7 @@ class ConversationStorage:
             "session_id": session_id,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": role, "content": content}
+                message,
             ],
             "created_at": datetime.now().isoformat()
         }

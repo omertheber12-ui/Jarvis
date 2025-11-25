@@ -51,6 +51,29 @@
             margin-top: 5px;
         }
 
+        .feature-status {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .status-pill {
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.25);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+        }
+
+        .status-pill.inactive {
+            background: rgba(0, 0, 0, 0.25);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #f8d7da;
+        }
+
         .chat-messages {
             flex: 1;
             overflow-y: auto;
@@ -216,6 +239,14 @@
         <div class="chat-header">
             <h1>🤖 Jarvis</h1>
             <p>Your Personal Secretary</p>
+            <div class="feature-status">
+                <span class="status-pill {{ 'active' if enable_calendar else 'inactive' }}">
+                    Calendar {{ 'Enabled' if enable_calendar else 'Disabled' }}
+                </span>
+                <span class="status-pill {{ 'active' if enable_tasks else 'inactive' }}">
+                    Tasks {{ 'Enabled' if enable_tasks else 'Disabled' }}
+                </span>
+            </div>
         </div>
         
         <div class="chat-messages" id="chatMessages">
